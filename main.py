@@ -1,6 +1,8 @@
 from tkinter import *
 from PIL import ImageTk, Image
 from functools import partial
+import psycopg2
+from tkinter import ttk
 
 
 def symbolsToIntCoord(k: str) -> (int, int):
@@ -10,11 +12,16 @@ def symbolsToIntCoord(k: str) -> (int, int):
     return (a, b)
 
 
-with open('INPUT.TXT', 'r') as input:
-    s = input.readline().strip().split()
+def selectAndDrawTask():
+    k = int(combo.get())
+    white, black = selectTask(k)
+    clearDesk()
+    drawDesk(white, black)
 
-# for i in range(2, 33):
-#   point[i] = symbolsToIntCoord(s[i])
+def clearDesk():
+    global btnList
+    for b in btnList:
+        b.destroy()
 
 
 root = Tk()
@@ -22,8 +29,15 @@ root.geometry("1000x700")
 
 canvas = Canvas(root, width=1000, height=700)
 canvas.pack()
-black = {}
-white = {}
+btnList = []
+#заполнить список значений combo результатами запроса (select номер from задачи order by номер)
+
+combo = ttk.Combobox(canvas,values=["1","2","3"],textvariable="1")
+combo.place(x=50,y=75)
+
+
+load_button = Button(canvas, text="Загрузить", command=selectAndDrawTask)
+load_button.place(x=50, y=150)
 
 
 def isKnightJump(p1: (int, int), p2: (int, int)) -> bool:
@@ -58,10 +72,10 @@ def isPawnJump(p1: (int, int), p2: (int, int), colour) -> bool:  # Не боль
         if p1[
             1] == 7:  # если пешка чёрная то ,если она на 7 линии то она может идти на 2 поля вперёд,иначе на 1 поле вперёд
             return (p1[0] == p2[0]) and (p2[1] - p1[1]) in (
-            -1, -2)  # истина это если не изменился столбец ,а строка уменьшилась либо на -1 или на -2
+                -1, -2)  # истина это если не изменился столбец ,а строка уменьшилась либо на -1 или на -2
         else:
             return (p1[0] == p2[0]) and (
-                        p2[1] - p1[1]) == -1  # истина это если не изменился столбец ,а строка  уменьшилась на -1
+                    p2[1] - p1[1]) == -1  # истина это если не изменился столбец ,а строка  уменьшилась на -1
 
 
 def drawDesk(white, black):
@@ -74,7 +88,7 @@ def drawDesk(white, black):
     for g in range(1, 9):
         # rec = canvas.create_rectangle(x1, y1 - recSize * g, x2, y2 - recSize * g)
         for i in range(1, 9):
-            rec = canvas.create_rectangle(x1 + recSize * i, y1 - recSize * g, x2 + recSize * i, y2 - recSize * g)
+            rec = canvas.create_rectangle(x1 + recSize * i, y1 - recSize * g, x2 + recSize * i, y2 - recSize * g,tags="black_rec")
             figurePoint = (i, g)
             drawFigure(figurePoint, white, black, recSize, x1, y1)
 
@@ -109,9 +123,31 @@ def drawLabel(text, colour, x, y, figPoint):
     btn = Button(canvas, image=img, command=partial(click, text, figPoint, colour))
     btn.photo = img
     btn.config(height=55, width=55)
+
     # label.configure(font="Helvetica 15 bold", fg=colour)
     btn.place(x=x - 21, y=y - 19)
+    global btnList
+    btnList.append(btn)
 
+
+# load_button = Button(root, text="Загрузить", command=load_task)
+# load_button.pack()
+
+# def load_task():
+# selected_move_coord = selected_move.get()  # Получите выбранный ход из выпадающего меню
+# if selected_move_coord = "Выберите ход":
+#   print(f"Загрузка задачи с ходом: {selected_move_coord}")
+
+
+# список для хранения возможных координат ходов
+possible_moves_list = []
+
+# StringVar для хранения выбранного хода
+selected_move = StringVar(root)
+selected_move.set("Выберите ход")
+
+move_dropdown = OptionMenu(root, selected_move, possible_moves_list)
+move_dropdown.pack()
 
 # def drawMoveDots():
 # dots=canvas.create_oval(coords,outline="greena",fill="green",width=3)
@@ -144,6 +180,8 @@ def click(text, figPoint, colour):
 
 
 def drawPossibleMoves(possible_moves):
+    global possible_moves_list
+    possible_moves_list = possible_moves  # Обновите список возможных ходов
     for move in possible_moves:
         i, g = move
         x = 230 + 60 * i
@@ -155,47 +193,65 @@ def clearPossibleMoves():
     canvas.delete("green_oval")
 
 
-# im = PhotoImage(file='myfile.gif')
-# l = Label(root, image=im)
-
-# btn = _.Button(file='myfile.gif')
-# l = Label(root, image=im)
-
-# def drawLabel(file, colour, x, y):
-# l = Label(canvas, file='BlackQueen.jpg', fg=colour)
-#  label = Label(root, image=l)
-# label.place(x=x, y=y)
+# Создайте выпадающее меню для отображения возможных ходов
 
 
-with open('INPUT.TXT', 'r', encoding="UTF-8") as input:
-    points = []
-    for i in range(2):
-        s = input.readline().strip().split()
-        kFigure = len(s)
-        if i == 0:
-            print("WHITE:")
-        else:
-            print("BLACK:")
-        for word in s:
-            name, pos = word.split(":")
-            point = symbolsToIntCoord(pos)
-            print(f" Figure {name} is on cell {point}")
+# Обновление выпадающего меню с возможными ходами
+# move_dropdown['menu'].delete(0, 'end')  # Очистите существующие варианты
+# for move in spisok:
+#  i, g = move
+# move_coord = f"{chr(64 + i)}{g}"
+# move_dropdown['menu'].add_command(label=move_coord, command=partial(select_move, move_coord))
+
+
+def inputTask(fileName):
+    black = {}
+    white = {}
+    with open(fileName, 'r', encoding="UTF-8") as input:
+        points = []
+        for i in range(2):
+            s = input.readline().strip().split()
+            kFigure = len(s)
             if i == 0:
-                white[point] = name
+                print("WHITE:")
             else:
-                black[point] = name
-print(white)
-print("________________________")
-print(black)
-# for i in range(2, 33):
-#  points[i] = symbolsToIntCoord(s[i])
+                print("BLACK:")
+            for word in s:
+                name, pos = word.split(":")
+                point = symbolsToIntCoord(pos)
+                print(f" Figure {name} is on cell {point}")
+                if i == 0:
+                    white[point] = name
+                else:
+                    black[point] = name
+    return (white, black)
 
-drawDesk(white, black)
 
-# for i1 in range(1, 9):
-#   canvas.create_rectangle(x1 + recSize, x2, y1, 0)
-#  for i2 in range(1, 9):
-#     canvas.create_rectangle(x + recSize, 0, y, 0)
+def selectTask(number):
+    black = {}
+    white = {}
+    con = psycopg2.connect(database="chess", user="postgres", password="tolstik.1", host="localhost", port="5432")
+    cursor_obj = con.cursor()
+    cursor_obj.execute(
+        f"select название,\"адрес_поля\" from \"фигура на позиции\" join фигуры on \"фигура на позиции\".id_фигуры = фигуры.id where номер_задачи = {number} and  цвет ='чёрный'")
+    result = cursor_obj.fetchall()
+    print(result)
+    for stroka in result:
+        figName = stroka[0]
+        pos = stroka[1]
+        point = symbolsToIntCoord(pos)
+        black[point] = figName
+    cursor_obj.execute(
+        f"select название,\"адрес_поля\" from \"фигура на позиции\" join фигуры on \"фигура на позиции\".id_фигуры = фигуры.id where номер_задачи = {number} and  цвет ='белый'")
+    result = cursor_obj.fetchall()
+    for stroka in result:
+        figName = stroka[0]
+        pos = stroka[1]
+        point = symbolsToIntCoord(pos)
+        white[point] = figName
+    return (white, black)
 
+
+#selectAndDrawTask()
 
 root.mainloop()
