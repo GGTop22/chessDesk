@@ -18,6 +18,7 @@ def selectAndDrawTask():
     clearDesk()
     drawDesk(white, black)
 
+
 def clearDesk():
     global btnList
     for b in btnList:
@@ -30,11 +31,34 @@ root.geometry("1000x700")
 canvas = Canvas(root, width=1000, height=700)
 canvas.pack()
 btnList = []
-#заполнить список значений combo результатами запроса (select номер from задачи order by номер)
 
-combo = ttk.Combobox(canvas,values=["1","2","3"],textvariable="1")
-combo.place(x=50,y=75)
 
+# заполнить список значений combo результатами запроса (select номер from задачи order by номер)
+
+
+def get_task_numbers():
+    rs = []
+    try:
+        connection = psycopg2.connect(database="chess", user="postgres", password="tolstik.1", host="localhost",
+                                      port="5432")
+
+        cursor = connection.cursor()
+        combo = "SELECT номер from задачи order by номер"
+
+        cursor.execute(combo)
+        for number in cursor:
+            rs.append(number[0])
+        cursor.close()
+    except psycopg2.Error:
+        print("Ошибка при выполнении запроса")
+    return rs
+
+
+task_numbers = get_task_numbers()
+print("Список номеров задач:", task_numbers)
+
+combo = ttk.Combobox(canvas, values=task_numbers, textvariable="1")
+combo.place(x=50, y=75)
 
 load_button = Button(canvas, text="Загрузить", command=selectAndDrawTask)
 load_button.place(x=50, y=150)
@@ -88,7 +112,8 @@ def drawDesk(white, black):
     for g in range(1, 9):
         # rec = canvas.create_rectangle(x1, y1 - recSize * g, x2, y2 - recSize * g)
         for i in range(1, 9):
-            rec = canvas.create_rectangle(x1 + recSize * i, y1 - recSize * g, x2 + recSize * i, y2 - recSize * g,tags="black_rec")
+            rec = canvas.create_rectangle(x1 + recSize * i, y1 - recSize * g, x2 + recSize * i, y2 - recSize * g,
+                                          tags="black_rec")
             figurePoint = (i, g)
             drawFigure(figurePoint, white, black, recSize, x1, y1)
 
@@ -252,6 +277,6 @@ def selectTask(number):
     return (white, black)
 
 
-#selectAndDrawTask()
+# selectAndDrawTask()
 
 root.mainloop()
